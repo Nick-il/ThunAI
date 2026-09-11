@@ -1,10 +1,12 @@
 fastapi==0.141.1
 uvicorn[standard]==0.52.4
 
-# PDF extraction and OCR
+# PDF extraction
 pymupdf==1.28.2
-pytesseract==0.3.13
-Pillow==12.3.0
+
+# OCR
+paddleocr==2.9.1
+paddlepaddle==2.6.2
 
 # Numerical analysis and charts
 numpy==2.5.2
@@ -14,6 +16,9 @@ matplotlib==3.11.1
 
 # Spreadsheet support for tools.analyze_excel
 openpyxl==3.1.5
+
+# Word document generation (for generate_word_document tool)
+python-docx==1.1.2
 
 # LangChain and LangGraph agent runtime
 langchain-core==1.6.1

@@ -1,50 +1,48 @@
 from pathlib import Path
-from io import BytesIO
-
 import fitz
-import pytesseract
-
-from PIL import Image
-
+import numpy as np
+from paddleocr import PaddleOCR
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 
-
 DOCUMENT_DIR = Path("documents")
 CHROMA_DIR = "chroma_db"
 
+# Initialize PaddleOCR globally so it loads into memory only once
+ocr = PaddleOCR(
+    use_textline_orientation=True,
+    lang='en'
+)
 
 def extract_pdf_text(pdf_path):
-
     doc = fitz.open(pdf_path)
-
     documents = []
 
     for page_number, page in enumerate(doc):
-
         # First try normal PDF text extraction
         text = page.get_text().strip()
 
-        # If there is little/no text, use OCR
+        # If there is little/no text, trigger PaddleOCR
         if len(text) < 20:
-
-            print(
-                f"OCR processing: "
-                f"{pdf_path.name} - page {page_number + 1}"
-            )
-
-            pix = page.get_pixmap(dpi=300)
-
-            image = Image.open(
-                BytesIO(pix.tobytes("png"))
-            )
-
-            text = pytesseract.image_to_string(image)
+            print(f"OCR processing: {pdf_path.name} - page {page_number + 1}")
+            
+            # Extract image without alpha channel (RGB)
+            pix = page.get_pixmap(dpi=300, alpha=False)
+            
+            # Convert directly to numpy array for PaddleOCR
+            img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 3)
+            
+            # Execute PaddleOCR
+            ocr_result = ocr.predict(img_array)
+            
+            if ocr_result and ocr_result[0]:
+                text = "\n".join([line[1][0] for line in ocr_result[0]])
+            else:
+                text = ""
 
         if text.strip():
-
             documents.append(
                 Document(
                     page_content=text,
@@ -54,65 +52,34 @@ def extract_pdf_text(pdf_path):
                     }
                 )
             )
-
     return documents
-
 
 # -----------------------------
 # LOAD DOCUMENTS
 # -----------------------------
-
 documents = []
-
 for pdf_file in DOCUMENT_DIR.glob("*.pdf"):
-
     print(f"\nProcessing: {pdf_file.name}")
-
     docs = extract_pdf_text(pdf_file)
-
     documents.extend(docs)
-
 
 print(f"\nLoaded {len(documents)} pages")
 
-
 # -----------------------------
-# CHUNK
+# CHUNK & EMBED
 # -----------------------------
-
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200
-)
-
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 chunks = splitter.split_documents(documents)
-
 print(f"Created {len(chunks)} chunks")
 
-
 if not chunks:
-    raise ValueError(
-        "No text was extracted from the documents."
-    )
+    raise ValueError("No text was extracted from the documents.")
 
-
-# -----------------------------
-# EMBEDDINGS
-# -----------------------------
-
-embeddings = OllamaEmbeddings(
-    model="nomic-embed-text"
-)
-
-
-# -----------------------------
-# CHROMA
-# -----------------------------
+embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
 vector_db = Chroma.from_documents(
     documents=chunks,
     embedding=embeddings,
     persist_directory=CHROMA_DIR
 )
-
 print("\nDocuments successfully stored in Chroma!")
