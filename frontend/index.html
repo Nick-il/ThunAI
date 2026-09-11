@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f8fafc" />
+    <title>ThunAI</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <span class="brand">ThunAI</span>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="conversation" aria-live="polite" aria-label="Conversation">
+        <div class="empty-state" id="emptyState">
+          <h1>What are you working through?</h1>
+          <p class="empty-copy">
+            Ask for an explanation, compare approaches, or work through a technical problem.
+          </p>
+        </div>
+        <div id="conversation" class="message-stack"></div>
+      </section>
+
+      <form id="chatForm" class="composer" aria-label="Ask ThunAI">
+        <textarea
+          id="promptInput"
+          name="message"
+          rows="2"
+          placeholder="Ask anything…"
+          aria-label="Ask ThunAI"
+          autocomplete="off"
+        ></textarea>
+        <div class="composer-actions">
+          <span class="composer-hint">Enter to send · Shift+Enter for a new line</span>
+          <button id="sendBtn" class="send-button" type="submit" aria-label="Send message">
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+          </button>
+        </div>
+      </form>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
+
