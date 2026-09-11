@@ -1,29 +1,18 @@
-from pathlib import Path
-
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from rag import agent
 
 app = FastAPI()
-BASE_DIR = Path(__file__).resolve().parent
-FRONTEND_DIR = BASE_DIR / "frontend"
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
-
 
 class ChatRequest(BaseModel):
     message: str
 
-
 @app.get("/")
 def home():
-    return FileResponse(FRONTEND_DIR / "index.html")
-
+    return {"message": "ThunAI API is running"}
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    from rag import agent
-
     result = agent.invoke({
         "messages": [
             {
@@ -32,11 +21,6 @@ def chat(request: ChatRequest):
             }
         ]
     })
-
     return {
-        "response": result.get(
-            "answer",
-            ""
-        )
+        "response": result.get("answer", "")
     }
-
