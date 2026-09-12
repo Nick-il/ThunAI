@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).parent
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
 # Keeping qwen3:8b as you requested
-llm = ChatOllama(model="qwen3:8b", temperature=0)
+llm = ChatOllama(model="qwen2.5:3b", temperature=0)
 llm_with_tools = llm.bind_tools(tools)
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")

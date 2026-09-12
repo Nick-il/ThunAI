@@ -9,10 +9,11 @@ paddleocr==2.9.1
 paddlepaddle==2.6.2
 
 # Numerical analysis and charts
-numpy==2.5.2
-pandas==3.0.5
-scipy==1.18.1
-matplotlib==3.11.1
+# NOTE: numpy is capped below 2.0 because paddleocr 2.9.1 requires numpy<2.0
+numpy>=1.24,<2.0
+pandas>=2.0,<3.0
+scipy>=1.11,<1.14
+matplotlib>=3.7,<3.9
 
 # Spreadsheet support for tools.analyze_excel
 openpyxl==3.1.5

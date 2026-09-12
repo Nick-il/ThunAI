@@ -85,7 +85,6 @@ function renderResponse(source) {
           <div class="code-toolbar">
             <span class="code-language">${escapeHtml(language)}</span>
             <button class="copy-code" type="button" aria-label="Copy code">
-              <span class="material-symbols-outlined" aria-hidden="true">content_copy</span>
               <span>Copy</span>
             </button>
           </div>
@@ -205,23 +204,46 @@ function appendError(message, retry) {
   return card;
 }
 
-function appendAssistantMessage(source, elapsed) {
+// Route labels shown in the meta line -- matches what /chat actually
+// returns (route, sources, latency_seconds), not a fake model name.
+const ROUTE_LABELS = {
+  general: "GENERAL",
+  document: "DOCUMENT",
+  tool: "TOOL",
+};
+
+function appendAssistantMessage(payload, clientElapsedSeconds) {
   const article = document.createElement("article");
   article.className = "assistant-message";
+
+  const route = ROUTE_LABELS[payload.route] || (payload.route || "UNKNOWN").toUpperCase();
+  const latency = typeof payload.latency_seconds === "number" ? payload.latency_seconds : clientElapsedSeconds;
 
   const meta = document.createElement("div");
   meta.className = "response-meta";
   meta.innerHTML = `
-    <span class="model-name">thun-2.5-pro</span>
+    <span class="model-name">ThunAI · ${escapeHtml(route)}</span>
     <span class="separator">·</span>
-    <span>${Math.max(1, Math.round(String(source).length / 4)).toLocaleString()} tokens</span>
-    <span class="separator">·</span>
-    <span>${elapsed.toFixed(1)}s</span>`;
+    <span>${latency.toFixed(1)}s</span>`;
 
   const content = document.createElement("div");
   content.className = "response-content";
-  content.innerHTML = renderResponse(source);
+  content.innerHTML = renderResponse(payload.response || "No response was returned.");
+
   article.append(meta, content);
+
+  // Show cited sources when the DOCUMENT route retrieved anything --
+  // this is the "source-backed, auditable answers" part of the pitch,
+  // made visible instead of silently returned and dropped.
+  if (Array.isArray(payload.sources) && payload.sources.length) {
+    const sourcesList = document.createElement("ul");
+    sourcesList.className = "response-list";
+    sourcesList.innerHTML = payload.sources
+      .map((entry) => `<li>Source: ${escapeHtml(entry.document || "unknown")}</li>`)
+      .join("");
+    article.append(sourcesList);
+  }
+
   conversation.append(article);
   attachCopyButtons(article);
   article.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -234,15 +256,15 @@ function attachCopyButtons(container) {
       try {
         await navigator.clipboard.writeText(code);
         button.classList.add("is-copied");
-        button.querySelector(".material-symbols-outlined").textContent = "check";
-        button.querySelector("span:last-child").textContent = "Copied";
+        const label = button.querySelector("span:last-child");
+        if (label) label.textContent = "Copied";
         window.setTimeout(() => {
           button.classList.remove("is-copied");
-          button.querySelector(".material-symbols-outlined").textContent = "content_copy";
-          button.querySelector("span:last-child").textContent = "Copy";
+          if (label) label.textContent = "Copy";
         }, 1800);
       } catch {
-        button.querySelector("span:last-child").textContent = "Select code";
+        const label = button.querySelector("span:last-child");
+        if (label) label.textContent = "Select code";
       }
     });
   });
@@ -272,7 +294,7 @@ async function submitMessage(message, { appendUser = true } = {}) {
     if (!response.ok) throw new Error(`Request failed (${response.status})`);
     const payload = await response.json();
     thinking.remove();
-    appendAssistantMessage(payload.response || "No response was returned.", (performance.now() - startedAt) / 1000);
+    appendAssistantMessage(payload, (performance.now() - startedAt) / 1000);
   } catch (error) {
     thinking.remove();
     appendError("The request could not be completed. Check the service and try again.", () => submitMessage(message, { appendUser: false }));
@@ -301,4 +323,3 @@ input.addEventListener("keydown", (event) => {
 });
 
 input.addEventListener("input", resizeInput);
-
