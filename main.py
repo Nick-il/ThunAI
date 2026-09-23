@@ -5,13 +5,19 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from ingest import run_ingest
 
 from rag import agent
+
+from langchain_core.messages import SystemMessage, HumanMessage
+
+run_ingest()
 
 app = FastAPI()
 
 BASE_DIR = Path(__file__).parent
 FRONTEND_DIR = BASE_DIR / "frontend"
+SYSTEM_PROMPT = """Your name is ThunAI, A soverign locally run AI workbench for confidential industrial use."""
 
 # index.html references /static/styles.css and /static/app.js,
 # so the frontend folder is mounted under /static to match.
@@ -32,13 +38,16 @@ def health():
     return {"status": "ok"}
 
 
+# main.py
 @app.post("/chat")
 def chat(request: ChatRequest):
     start = time.time()
 
+    # Pass actual Message objects
     result = agent.invoke({
         "messages": [
-            {"role": "user", "content": request.message}
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=request.message)
         ]
     })
 

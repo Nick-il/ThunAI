@@ -1,5 +1,5 @@
 from pathlib import Path
-import fitz
+import pymupdf as fitz
 import numpy as np
 from paddleocr import PaddleOCR
 from langchain_core.documents import Document
@@ -11,12 +11,16 @@ DOCUMENT_DIR = Path("documents")
 CHROMA_DIR = "chroma_db"
 
 # Initialize PaddleOCR globally so it loads into memory only once
-ocr = PaddleOCR(
+ocr = None
+
+def extract_pdf_text(pdf_path):
+    global ocr
+    if ocr is None:
+        ocr = PaddleOCR(
     use_textline_orientation=True,
     lang='en'
 )
-
-def extract_pdf_text(pdf_path):
+        
     doc = fitz.open(pdf_path)
     documents = []
 
@@ -35,7 +39,7 @@ def extract_pdf_text(pdf_path):
             img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 3)
             
             # Execute PaddleOCR
-            ocr_result = ocr.predict(img_array)
+            ocr_result = ocr.ocr(img_array)
             
             if ocr_result and ocr_result[0]:
                 text = "\n".join([line[1][0] for line in ocr_result[0]])
@@ -54,32 +58,48 @@ def extract_pdf_text(pdf_path):
             )
     return documents
 
-# -----------------------------
-# LOAD DOCUMENTS
-# -----------------------------
-documents = []
-for pdf_file in DOCUMENT_DIR.glob("*.pdf"):
-    print(f"\nProcessing: {pdf_file.name}")
-    docs = extract_pdf_text(pdf_file)
-    documents.extend(docs)
-
-print(f"\nLoaded {len(documents)} pages")
-
-# -----------------------------
-# CHUNK & EMBED
-# -----------------------------
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-chunks = splitter.split_documents(documents)
-print(f"Created {len(chunks)} chunks")
-
-if not chunks:
-    raise ValueError("No text was extracted from the documents.")
-
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
-
-vector_db = Chroma.from_documents(
-    documents=chunks,
-    embedding=embeddings,
-    persist_directory=CHROMA_DIR
+def run_ingest():
+    global ocr
+    if ocr is None:
+        ocr = PaddleOCR(
+    use_textline_orientation=True,
+    lang='en'
 )
-print("\nDocuments successfully stored in Chroma!")
+
+    # -----------------------------
+    # LOAD DOCUMENTS
+    # -----------------------------
+    documents = []
+    for pdf_file in DOCUMENT_DIR.glob("*.pdf"):
+        print(f"\nProcessing: {pdf_file.name}")
+        docs = extract_pdf_text(pdf_file)
+        documents.extend(docs)
+
+    print(f"\nLoaded {len(documents)} pages")
+
+    # -----------------------------
+    # CHUNK & EMBED
+    # -----------------------------
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_documents(documents)
+    print(f"Created {len(chunks)} chunks")
+
+    if not chunks:
+        raise ValueError("No text was extracted from the documents.")
+
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+
+    vector_db = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        persist_directory=CHROMA_DIR
+    )
+    print("\nDocuments successfully stored in Chroma!")
+
+if __name__ == "__main__":
+    if ocr is None:
+        PaddleOCR(
+    use_textline_orientation=True,
+    lang='en'
+)
+    run_ingest()

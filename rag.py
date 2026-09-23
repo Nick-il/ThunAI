@@ -5,7 +5,7 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
-from tools import tools
+from agent_tools import tools
 
 BASE_DIR = Path(__file__).parent
 CHROMA_DIR = BASE_DIR / "chroma_db"
@@ -48,10 +48,6 @@ def route_question(state: AgentState) -> Literal["general_answer", "retrieve", "
     if state["route"] == "tool": return "tool_agent"
     return "general_answer"
 
-def generate_general_answer(state: AgentState):
-    response = llm.invoke(f"Answer clearly. Question: {state['question']}")
-    return {"answer": response.content}
-
 def retrieve_documents(state: AgentState):
     results = vector_db.similarity_search(state["question"], k=3)
     context_parts = []
@@ -61,16 +57,28 @@ def retrieve_documents(state: AgentState):
         context_parts.append(f"SOURCE: {source}\nCONTENT:\n{doc.page_content}")
         sources.append({"document": source})
     return {"context": "\n\n".join(context_parts), "sources": sources}
+# rag.py
 
-def generate_document_answer(state: AgentState):
-    prompt = f"Answer using ONLY context. CONTEXT: {state['context']} QUESTION: {state['question']}"
-    response = llm.invoke(prompt)
+def generate_general_answer(state: AgentState):
+    # Pass the entire message list (System prompt + User prompt) directly to the LLM
+    response = llm.invoke(state["messages"])
     return {"answer": response.content}
 
+
+def generate_document_answer(state: AgentState):
+    # Keep the system message, but replace the user's raw question 
+    # with a new one that includes the RAG context.
+    messages = state["messages"][:-1] + [
+        ("human", f"Answer using ONLY context. CONTEXT: {state['context']} QUESTION: {state['question']}")
+    ]
+    response = llm.invoke(messages)
+    return {"answer": response.content}
+
+
 def tool_agent(state: AgentState):
-    system_message = "You are the engineering/document agent. Use tools to calculate or generate Word documents."
-    messages = [{"role": "system", "content": system_message}] + state["messages"]
-    response = llm_with_tools.invoke(messages)
+    # state["messages"] already has your SYSTEM_PROMPT from FastAPI!
+    # No need to inject a second system message here.
+    response = llm_with_tools.invoke(state["messages"])
     return {"messages": [response]}
 
 def finalize_tool_answer(state: AgentState):
